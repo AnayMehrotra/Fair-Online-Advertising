@@ -37,21 +37,19 @@ def get_shift(shift,j):
         else: a-= 1
     elif a-b != shift_index(max_s-shift[0])-shift_index(min_s-shift[0])+1:
         a+=shift_index(max_s-shift[0])-shift_index(min_s-shift[0])+1+b-a
-        print("shiz",shift_index(max_s-shift[0])-shift_index(min_s-shift[0])+1+b-a)
+        print("Error! #1",shift_index(max_s-shift[0])-shift_index(min_s-shift[0])+1+b-a,flush=True)
 
     if a-b != shift_index(max_s-shift[0])-shift_index(min_s-shift[0])+1:
-        print("Hellooo",a,b,shift_index(max_s-shift[0]),shift_index(min_s-shift[0])+1)
+        print("Error! #2",a,b,shift_index(max_s-shift[0]),shift_index(min_s-shift[0])+1,flush=True)
     return a,b
 # Calculates q_{shift,attr}
 def coverage_advertiser(shift,i,attr):
     max_s=max(shift)[0];
     min_s=min(shift)[0];
     a,b=get_shift(shift,i)
-    # print(a,b,len(y[attr][i][a:b]))
     tmp = y[attr][i][a:b]
     for j in range(len(shift)):
         if j != i:
-            # print("hihi",a,b,len(z[attr][j][a:b]))
             a,b=get_shift(shift,j)
             tmp=tmp*z[attr][j][a:b]
     q=integrate.simps(tmp, dx=((max_x-min_x)/samples))
@@ -175,7 +173,7 @@ def gradient_revenue_coverage(shift,attr):
 def coverage_total(shift,attr):
     return np.array([coverage_advertiser(shift,i,attr) for i in range(len(shift))])
 # calculates \nabla \mathcal{L}(\alpha)
-def getGradLoss(adv,target,shift,attr):
+def get_grad_loss(adv,target,shift,attr):
     coeff = np.array([-2* (target[i] - coverage_advertiser(shift,i,attr)) for i in range(len(shift))])
     nabla  = []
     for j in range(len(shift)-1):
@@ -265,56 +263,56 @@ def GDCoverage(adv, target, shift,attr):
 
     ## Initialize
     q=coverage_total(shift,attr)
-    prevErr = linalg.norm(q-target) ** 2
-    loss.append(prevErr)
+    prev_err = linalg.norm(q-target) ** 2
+    loss.append(prev_err)
 
     i=0 ## Total iterations so far
     j=0 ## Number of iterations when error decreased
-    while prevErr > eps:
+    while prev_err > eps:
         i+=1
         j+=1 # j=0 if error increased in this iteration
-        if j % 40 * int(i/100+1) == 39 * int(i/100+1) and prevErr > 1e-4:
+        if j % 40 * int(i/100+1) == 39 * int(i/100+1) and prev_err > 1e-4:
             ## Increase learning rate if current error is large and learning rate is performing well
             gamma *= 4
-        if i > 1000 and prevErr < 1e-4:
+        if i > 1000 and prev_err < 1e-4:
             break
         if i > 2000: ## Stop if error is not reducing
-            print("QUIT EARLY!!",flush=True)
+            print("GDCoverage quit early!",flush=True)
             break
 
         ## Calculate gradient
-        grad=getGradLoss(adv,target,shift,attr)
+        grad=get_grad_loss(adv,target,shift,attr)
 
         ## Helpful print statements
-        if i%50==49:
-            i+=0
-            print("       error in last iteration:", prevErr)
-            print("       learning rate",gamma)
-            print("       current shift:",shift.reshape(-1,1).tolist())
-            print("       gradient:",grad.tolist())
-            print("       current coverage",q.tolist())
+        # if i%500==499:
+        #     i+=0
+        #     print("       error in last iteration:", prev_err, flush=True)
+        #     print("       learning rate",gamma, flush=True)
+        #     print("       current shift:",shift.reshape(-1,1).tolist(), flush=True)
+        #     print("       gradient:",grad.tolist(), flush=True)
+        #     print("       current coverage",q.tolist(), flush=True)
 
         ## Update learning rate when gradient is large
         gamma = min(gamma, 3/(max(abs(grad))+0.00001));
 
         ## Gradient Update
-        shiftTmp = shift - gamma * grad.reshape(-1,1)
-        q = coverage_total(shiftTmp,attr)
+        shift_tmp = shift - gamma * grad.reshape(-1,1)
+        q = coverage_total(shift_tmp,attr)
 
         ## Reduce learning rate if loss increases
-        if gamma > 1 and (prevErr - linalg.norm(q-target) ** 2)/prevErr < -0.1:
+        if gamma > 1 and (prev_err - linalg.norm(q-target) ** 2)/prev_err < -0.1:
             gamma *= 0.5
             q = coverage_total(shift,attr)
             j=0  ## Error increased
         else:
-            shift=copy.deepcopy(shiftTmp)
+            shift=copy.deepcopy(shift_tmp)
 
         ## Track loss
-        prevErr = linalg.norm(q-target) ** 2
-        loss.append(prevErr)
+        prev_err = linalg.norm(q-target) ** 2
+        loss.append(prev_err)
 
-    print("Final coverage",q)
-    print("Final Coverage Error:",prevErr)
+    print("        Final coverage from GDCoverage(): ",q, flush=True)
+    print("        Final coverage error from GDCoverage(): ",prev_err, flush=True)
 
     return shift, loss
 def GDRevenue(shift):
@@ -326,7 +324,7 @@ def GDRevenue(shift):
     gamma = np.array([0.05 for a in range(numAttr)]);
     eps_value = 1e-5
     eps_sequence = 1e-2
-    step_size=10 ## Stop when gradient step is small
+    step_size=1 ## Stop when gradient step is small
 
     ## Initialize coverage as the projection of optimal on fair polytope
     q = np.zeros((numAttr,numAdv));
@@ -334,17 +332,17 @@ def GDRevenue(shift):
     q = projection(q)
 
     for a in range(numAttr):
-        shiftTmp, _= GDCoverage(adv,q[a],shift[a].reshape(-1,1),a)
-        shift[a]=shiftTmp.reshape((numAdv));
+        shift_tmp, _= GDCoverage(adv,q[a],shift[a].reshape(-1,1),a)
+        shift[a]=shift_tmp.reshape((numAdv));
     for a in range(numAttr): q[a]=coverage_total(shift[a].reshape(-1,1),a);
-    print("Initial coverage",q)
+    print("Initial coverage",q, flush=True)
 
     ## Initial revenue
     rev=revenue_total(shift);
-    revPrev=0.5*rev
+    rev_prev=0.5*rev
 
     i=0
-    print_period = 1 # Show updates every {#1} iterations
+    print_period = 10 # Show updates every {#1} iterations
     revenue_decreased = False # True if revenue decreased
 
     while step_size > eps_sequence or revenue_decreased == True or i < 100:
@@ -355,18 +353,18 @@ def GDRevenue(shift):
         grad = [[]for a in range(numAttr)]
         for a in range(numAttr): grad[a] = gradient_revenue_coverage(shift[a].reshape(-1,1),a)
 
-        if i % print_period == print_period-1:
-            print("Iteration",i,", revenue in last iteration ",revPrev)
-            print("     step_size in last iteration", step_size)
-            print("     gradient", grad)
-            print("     shift", shift)
-            print("     rev", rev)
-            print("     learning rate",gamma)
-            print("     current coverage ", q)
+        if i % print_period == 0:
+            print("Iteration",i,", revenue in last iteration ",rev_prev, flush=True)
+            # print("     step_size in last iteration", step_size, flush=True)
+            print("    gradient", grad, flush=True)
+            # print("     shift", shift, flush=True)
+            # print("    rev", rev, flush=True)
+            print("    learning rate",gamma, flush=True)
+            #print("    current coverage ", q.tolist(), flush=True)
 
         qprev= copy.deepcopy(q)
-        shiftprev = copy.deepcopy(shift)
-        qTmp = np.zeros((numAttr,numAdv));
+        shift_prev = copy.deepcopy(shift)
+        q_tmp = np.zeros((numAttr,numAdv));
 
         ## Update learning rate when gradient is large
         for a in range(numAttr): gamma[a] = min(gamma[a], 0.1/(max(grad[a])+0.00001));
@@ -375,20 +373,20 @@ def GDRevenue(shift):
         done = np.zeros(numAttr)
         for a in range(numAttr):
             if done[a]==True: continue
-            qTmp[a] = q[a] + gamma[a] * grad[a]
+            q_tmp[a] = q[a] + gamma[a] * grad[a]
 
         ## Project on the fair polytope
-        qTmp = projection(qTmp)
+        q_tmp = projection(q_tmp)
 
         ## Update next iteration
-        q=qTmp
+        q=q_tmp
 
-        if i % print_period == print_period-1: print("     next coverage ", q)
+        #if i % print_period == 0: print("     next coverage ", q.tolist, flush=True)
 
         ## Get shift from Algorithm2 (GDCoverage)
         for a in range(numAttr):
-            shiftTmp,rum_loss_algorithm2 = GDCoverage(adv,q[a],shift[a].reshape(-1,1),a)
-            shift[a]=shiftTmp.reshape((numAdv));
+            shift_tmp,rum_loss_algorithm2 = GDCoverage(adv,q[a],shift[a].reshape(-1,1),a)
+            shift[a]=shift_tmp.reshape((numAdv));
 
         ## Optionally use iterative binary search
         # res,shift = oracle2(adv,q,shift);
@@ -398,33 +396,32 @@ def GDRevenue(shift):
 
         ## Track loss
         loss_algorithm2.append(rum_loss_algorithm2)
-        revPrev=copy.deepcopy(rev)
+        rev_prev=copy.deepcopy(rev)
         rev=revenue_total(shift);
         loss_self.append(rev)
 
-        qprevStep = np.zeros((numAttr,numAdv));
+        q_prev_step = np.zeros((numAttr,numAdv));
 
         ## Calculate step size using a for learning rate of 0.05
         for a in range(numAttr):
-            qprevStep[a] = qprev[a] + gamma[a] * grad[a]
-        qprevStep = projection(qprevStep)
-        step_size = linalg.norm(projection(qprev)-qprevStep)
+            q_prev_step[a] = qprev[a] + gamma[a] * grad[a]
+        q_prev_step = projection(q_prev_step)
+        step_size = linalg.norm(projection(qprev)-q_prev_step)
 
-        if i % print_period == print_period-1:
-            print(rev,revPrev)
-            print("Relative improvement (revenue_current-revenue_previous)/revenue_previous",(rev - revPrev)/revPrev)
+        if i % print_period == 0:
+            print("Relative improvement (revenue_current-revenue_previous)/revenue_previous",(rev - rev_prev)/rev_prev, flush=True)
 
         ## Reduce learning rate if loss increases
         ## also undo current gradient step
-        if (rev - revPrev)/revPrev < -eps_value:
+        if (rev - rev_prev)/rev_prev < -eps_value:
             revenue_decreased = True
             gamma *= 0.8
-            shift=copy.deepcopy(shiftprev)
+            shift=copy.deepcopy(shift_prev)
             q=copy.deepcopy(qprev)
-            rev=revPrev
+            rev=rev_prev
             if max(gamma) < 1e-8:
                 break
-        elif (rev - revPrev)/revPrev > -eps_value and (rev - revPrev)/revPrev < eps_value:
+        elif (rev - rev_prev)/rev_prev > -eps_value and (rev - rev_prev)/rev_prev < eps_value:
             break
 
     return shift,loss_self,loss_algorithm2
@@ -459,5 +456,5 @@ def removeAdv():
     res=np.zeros((numAdv,numAttr));
     for attr in range(numAttr): res[:,attr]=coverage_total(np.zeros((numAttr,len(adv)))[attr].reshape(-1,1),attr);
 
-    print("Result after removing advertisers")
-    print(res)
+    print("Result after removing advertisers",flush=True)
+    print(res,flush=True)

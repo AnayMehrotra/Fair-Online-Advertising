@@ -5,17 +5,15 @@ import copy, time, pickle, itertools, sys
 import matplotlib.pyplot as plt
 
 #### Set up and global
-with open("data/corr_all_key", 'rb') as fileOpen:
-    corr = pickle.load(fileOpen)
+with open("data/corr_all_key", 'rb') as fOpen:
+    corr = pickle.load(fOpen)
 
 numAttr=2; #numAttr: Number of attributes
 numAdv=-1; #Number of advertisers
 
-
-def runExperiment(thread_index):
+def run_experiment(thread_index):
     #index if the
     start_time = time.time();
-    sys.stdout = open('<Specify file name to record the run>'+'_Thread'+str(thread_index)+'_<Specify date>.txt','w')
 
     number_of_keys=1009
     number_of_cores=45
@@ -23,7 +21,7 @@ def runExperiment(thread_index):
 
     ## Results from iter runs of the experiment
     ratio = [ []for p in constraint ]
-    keyPair = hgf.getKeyPair(number_of_keys,number_of_cores,corr)
+    key_pair = hgf.get_key_pair(number_of_keys,number_of_cores,corr)
 
     unbalanced = pickle.load(open("implicit_fairness", 'rb'), encoding='latin1')
     unbalancedSet = set()
@@ -35,25 +33,25 @@ def runExperiment(thread_index):
     for ijk,[key1,key2] in enumerate(unbalancedSet):
         if ijk % number_of_cores == thread_index:
             print("Running keys:",key1,", ",key2,flush=True)
-            _ = runAuction(key1,key2,constraint,thread_index)
+            _ = run_auction(key1,key2,constraint,thread_index)
 
     print("Time to run experiment: %s seconds " % (time.time() - start_time),flush=True)
 
-def runAuction(k1,k2,constraints,thread,stats=0):
+def run_auction(k1,k2,constraints,thread,stats=0):
     global numAttr;global numAdv;global key1; global key2
     key1=k1;key2=k2
 
     start_time = time.time();
 
     ## Get advertisers
-    gf.adv, gf.y, gf.z= hgf.getAdv(k1,k2)
+    gf.adv, gf.y, gf.z= hgf.get_adv(k1,k2)
     gf.removeAdv()
     gf.numAdv=len(gf.adv)
     adv=copy.deepcopy(gf.adv)
     numAdv=len(gf.adv)
 
     if(gf.numAdv<2):
-        hgf.reportError("Only "+str(gf.numAdv)+ " advertiser",key1,key2);
+        hgf.report_error("Only "+str(gf.numAdv)+ " advertiser",key1,key2);
         return
     print("numAdv:",gf.numAdv,flush=True)
 
@@ -79,9 +77,9 @@ def runAuction(k1,k2,constraints,thread,stats=0):
         shift=np.zeros((numAttr,len(adv)))
         res=np.zeros((numAdv,numAttr));
 
-        if(stats): print(">>Myerson...");
+        if(stats): print(">>Myerson...", flush=True);
         for attr in range(numAttr):res[:,attr]=gf.coverage_total(shift[attr].reshape(-1,1),attr);
-        if(stats): printResult(res,shift);
+        if(stats): printResult(res,shift, flush=True);
 
         revenue_unconstrained[i].append(gf.revenue_total(shift))
         result_unconstrained[i].append(res)
@@ -90,9 +88,9 @@ def runAuction(k1,k2,constraints,thread,stats=0):
         if i != 0:
             shift=copy.deepcopy(initial_shift)
 
-        if(stats): print(">>Optimizing...");start_time = time.time();
+        if(stats): print(">>Optimizing...", flush=True);start_time = time.time();
         shift, loss_self, loss_algorithm2 = gf.GDRevenue(shift);
-        if(stats): printResult(res,shift);
+        if(stats): printResult(res,shift, flush=True);
 
         rev=gf.revenue_total(np.zeros((numAttr,numAdv)));
 
@@ -124,9 +122,9 @@ def runAuction(k1,k2,constraints,thread,stats=0):
         initial_shift = copy.deepcopy(shift)
 
         if stats:
-            print("Result: ",res.tolist())
-            print("shift: ",shift.tolist())
-            print("revenue",i,"= ",revenue_constrained[i]);
+            print("Result: ",res.tolist(), flush=True)
+            print("shift: ",shift.tolist(), flush=True)
+            print("revenue",i,"= ",revenue_constrained[i], flush=True);
 
     ##################################################
     ## Stucture results to store
@@ -146,38 +144,36 @@ def runAuction(k1,k2,constraints,thread,stats=0):
     ##################################################
     Result={'numAdv':numAdv,'adv':adv,'revenue_constrained':revenue_constrained,'revenue_unconstrained':revenue_unconstrained,'result_constrained':result_constrained,'result_unconstrained':result_unconstrained,'result_shift':result_shift,'constraints':constraints}
     folder="data/keys-"+str(key1)+"-"+str(key2)+"/"
-    with open(folder+"experiment_gradient_algorithm_Result", 'wb') as file:
-        pickle.dump(Result, file, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"experiment_gradient_algorithm_Result", 'wb') as f:
+        pickle.dump(Result, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     ## Print shift for strongest fairness constraint
-    print(result_constrained[0])
-    print(result_constrained[-1])
+    print(result_constrained[0], flush=True)
+    print(result_constrained[-1], flush=True)
     print("Shift for p="+str(constraints[-1]), result_shift[-1].tolist(),flush=True)
-    print("Results for p="+str(constraints[0]), hgf.toRelative(result_constrained[0][0],numAdv).tolist(),flush=True)
-    print("Results for p="+str(constraints[-1]), hgf.toRelative(result_constrained[-1][0],numAdv).tolist(),flush=True)
+    print("Results for p="+str(constraints[0]), hgf.to_relative(result_constrained[0][0],numAdv).tolist(),flush=True)
+    print("Results for p="+str(constraints[-1]), hgf.to_relative(result_constrained[-1][0],numAdv).tolist(),flush=True)
     print("--- %s seconds ---" % (time.time() - start_time),flush=True)
 
     ratio = [ revenue_constrained[i]/(revenue_unconstrained[i]+1e-7) for i in range(len(constraints))]
     return ratio
 
-
 def get_unbalanced_keys():
     number_of_keys=1009
     number_of_cores=45
     constraint=[0.0]
-    sys.stdout = open('get_unbalanced_keys'+'_'+'<Specify date>'+'.txt','w')
 
     ## Results from iter runs of the experiment
     ratio = [ []for p in constraint ]
-    keyPair = hgf.getKeyPair(number_of_keys,number_of_cores,corr)
+    key_pair = hgf.get_key_pair(number_of_keys,number_of_cores,corr)
 
     unbalance = {"unbalance":[], "index":[]}
-    for ijk,[key1,key2] in enumerate(keyPair):
+    for ijk,[key1,key2] in enumerate(key_pair):
         start_time = time.time();
         print("Running keys:",key1,", ",key2,flush=True)
 
         ## Get advertisers
-        gf.adv, gf.y, gf.z= hgf.getAdv(key1,key2)
+        gf.adv, gf.y, gf.z= hgf.get_adv(key1,key2)
         if gf.y == -1: continue
         gf.removeAdv()
         gf.numAdv=len(gf.adv)
@@ -185,7 +181,7 @@ def get_unbalanced_keys():
         numAdv=len(gf.adv)
 
         if(gf.numAdv<2):
-            print("ERROR Only "+str(gf.numAdv)+ " advertiser");
+            print("ERROR Only "+str(gf.numAdv)+ " advertiser", flush=True);
             continue;
         print("numAdv:",gf.numAdv,flush=True)
 
@@ -197,15 +193,20 @@ def get_unbalanced_keys():
         res=np.zeros((numAdv,numAttr));
 
         for attr in range(numAttr):res[:,attr]=gf.coverage_total(shift[attr].reshape(-1,1),attr);
-        relative_result = hgf.toRelative(res,numAdv)
-        print(relative_result)
+        relative_result = hgf.to_relative(res,numAdv)
+        print(relative_result, flush=True)
         unbalance_ = 100
         for a,i in itertools.product(range(numAttr),range(numAdv)):
             unbalance_ = min(unbalance_, relative_result[i][a])
         unbalance["unbalance"].append(unbalance_)
         unbalance["index"].append([key1,key2])
-        print("Unbalance",unbalance_)
-        print(time.time()-start_time,"seconds")
+        print("Unbalance",unbalance_, flush=True)
+        print(time.time()-start_time,"seconds", flush=True)
 
-        with open("implicit_fairness", 'wb') as file:
-            pickle.dump(unbalance,file)
+        with open("implicit_fairness", 'wb') as f:
+            pickle.dump(unbalance,f)
+
+
+if __name__ == '__main__' :
+    arg=sys.argv
+    run_experiment(int(arg[1]))

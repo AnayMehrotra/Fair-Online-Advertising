@@ -9,26 +9,26 @@ import sys
 ####################################################################################
 #Helper functions
 ####################################################################################
-file_index=0
-def reportError(msg):
-    global key1;global key2;global indexx;
-    os.system("echo \""+str(key1)+"-"+str(key2)+": "+msg+"\">> errorsExperiment"+str(indexx))
+f_index=0
+def report_error(msg):
+    global key1;global key2;global f_index;
+    os.system("echo \""+str(key1)+"-"+str(key2)+": "+msg+"\">> errorsExperiment"+str(f_index))
 
-with open("data/corr_all_key", 'rb') as fileOpen:
-    corr = pickle.load(fileOpen)
+with open("data/corr_all_key", 'rb') as f:
+    corr = pickle.load(f)
 
 def getKeyPair():
-    numKey=1009
-    keyPair=[]
-    for key1,key2 in itertools.product(range(numKey),range(numKey)):
+    number_of_keys=1009
+    key_pair=[]
+    for key1,key2 in itertools.product(range(number_of_keys),range(number_of_keys)):
         if key2<=key1 or corr[key1][key2]<2: continue;
-        keyPair.append([key1,key2])
-    def getKey(keyPair):
+        key_pair.append([key1,key2])
+    def getKey(key_pair):
         global corr
-        return int(corr[keyPair[0]][keyPair[1]])
-    keyPair=sorted(keyPair,key=getKey,reverse=True)
-    print("len", len(keyPair))
-    return keyPair
+        return int(corr[key_pair[0]][key_pair[1]])
+    key_pair=sorted(key_pair,key=getKey,reverse=True)
+    print("len", len(key_pair),flush=True)
+    return key_pair
 
 ####################################################################################
 # Functions to run experiments
@@ -36,39 +36,38 @@ def getKeyPair():
 def main(thread_index):
     start_time = time.time();
 
-    numKey=1009
-    numCores=14
-    lowVarAdvKeyPair = pickle.load(open("data/lowVarAdv", 'rb'))
-    with open("data/corr_all_key", 'rb') as fileOpen:
-        corr = pickle.load(fileOpen)
+    number_of_keys=1009
+    number_of_cores=14
+    low_var_adv_tmp = pickle.load(open("data/low_var_adv", 'rb'))
+    with open("data/corr_all_key", 'rb') as f:
+        corr = pickle.load(f)
 
-    lowVarAdv  = [set() for i in range(numKey)]
-    for pair in lowVarAdvKeyPair:
-        lowVarAdv[pair[1]].add(pair[0])
+    low_var_adv  = [set() for i in range(number_of_keys)]
+    for pair in low_var_adv_tmp:
+        low_var_adv[pair[1]].add(pair[0])
 
-    advKeyPair = [set() for i in range(numKey)]
-    for key1 in range(numKey):
-        if key1%100==0: print(key1)
-        for key2 in range(numKey):
+    adv_key = [set() for i in range(number_of_keys)]
+    for key1 in range(number_of_keys):
+        if key1%100==0: print(key1,flush=True)
+        for key2 in range(number_of_keys):
             if(key2 > key1) and corr[key1][key2]>1:
-                with open("data/keys-"+str(key1)+"-"+str(key2)+"/advertiser", 'rb') as fileOpen:
-                    sharedAdvertisers = pickle.load(fileOpen)
+                with open("data/keys-"+str(key1)+"-"+str(key2)+"/advertiser", 'rb') as f:
+                    sharedAdvertisers = pickle.load(f)
                 for adv in sharedAdvertisers:
-                    if adv not in lowVarAdv[key1] and adv not in lowVarAdv[key2]:
-                        advKeyPair[key1].add(adv)
-                        advKeyPair[key2].add(adv)
+                    if adv not in low_var_adv[key1] and adv not in low_var_adv[key2]:
+                        adv_key[key1].add(adv)
+                        adv_key[key2].add(adv)
 
     ijk = 0
     cnt=0
-    for key in range(len(advKeyPair)):
-        if len(advKeyPair[key])<2: continue;
-        for adv in advKeyPair[key]:
+    for key in range(len(adv_key)):
+        if len(adv_key[key])<2: continue;
+        for adv in adv_key[key]:
             ijk+=1
-            ## Issues with range of phi_min or phi_max in these keys
-            if ijk%numCores == thread_index:
-                print(key,adv)
+            if ijk%number_of_cores == thread_index:
+                print(key,adv,flush=True)
                 generate_pdf_cdf_arrays(key,adv)
-    print("Total=",cnt)
+    print("Total=",cnt,flush=True)
 
 def generate_pdf_cdf_arrays(key,adv):
     ## For error reporting
@@ -120,13 +119,14 @@ def generate_pdf_cdf_arrays(key,adv):
     y,z = get_pdf_cdf_arrays(func_cdf,func_pdf,func_inv_cdf);
 
     folder="data/keys-"+str(key)+"-adv"+str(adv)+"/"
-    with open(folder+"pdf_array_virtual_valuation", 'wb') as file:
-        pickle.dump(y, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"cdf_array_virtual_valuation", 'wb') as file:
-        pickle.dump(z, file, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"pdf_array_virtual_valuation", 'wb') as f:
+        pickle.dump(y, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"cdf_array_virtual_valuation", 'wb') as f:
+        pickle.dump(z, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    print(time.time()-start,"sec")
+    print(time.time()-start,"sec",flush=True)
 
 
 if __name__ == '__main__' :
-    main()
+    arg=sys.argv
+    main(int(arg[1]))

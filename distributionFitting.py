@@ -1,13 +1,10 @@
 #!/usr/bin/python
-
 import numpy as np
 import scipy.interpolate as interpolate
 import scipy.io as sio
-import scipy.stats as stats
 import matplotlib.pyplot as plt
 from sklearn import mixture
 import pickle, os, time, sys
-from scipy import integrate
 
 ## Fit a mixture of gaussians to the bidding pattern of given agent for the given keyword
 def distribution_fitting(bids,agents,key,adv):
@@ -21,10 +18,10 @@ def distribution_fitting(bids,agents,key,adv):
     ## Distribution characteristics for each agent
     ## range_phi_min : list of min of range of virtual valuation of all advertisers
     ## range_phi_max : list of max of range of virtual valuation of all advertisers
-    ## cdf : list cdf of all advertisers
-    ## pdf : list pdf of all advertisers
-    ## inv_cdf : list inv_cdf of all advertisers
-    ## inv_phi : list inv_pdf of all advertisers
+    ## cdf : list of cdf of all advertisers
+    ## pdf : list of pdf of all advertisers
+    ## inv_cdf : list of inverse cdf of all advertisers
+    ## inv_phi : list of inverse pdf of all advertisers
     ##################################################
     cdf = []
     pdf = []
@@ -38,7 +35,7 @@ def distribution_fitting(bids,agents,key,adv):
     ## b[str(i)+"count"][0][j]: number of bids on keyword i by jth largest advertiser
     ## b[str(i)+"agent"][0][j]: id of jth largest advertiser on keyword i
     b = sio.loadmat('data/find_agent_keyword')
-    print("on agent:", adv)
+    print("on agent:", adv,flush=True)
 
     # Top agents (in terms of number of bids) selected for keyword
     # adv = b[str(key)+'agent'][0][i]
@@ -50,7 +47,7 @@ def distribution_fitting(bids,agents,key,adv):
         if agents[j] == adv and bids[j]<100:
             agent_bids.append(bids[j])
     if len(agent_bids)<1000:
-        print("Error!!!")
+        print("Error!!!",flush=True)
         return [cdf,pdf,inv_cdf,inv_phi,range_phi_min,count,-1]
 
     ##################################################
@@ -87,7 +84,7 @@ def distribution_fitting(bids,agents,key,adv):
             var = g.covariances_
             if np.min(var) < 0.003:
                 ## Too low variance cannot include this bidder.
-                print("Excluding advertiser: ",adv,"Variance for 1 gaussian is: ",np.min(var),"Some?weight?is:",w[np.argmin(var)])
+                print("Excluding advertiser: ",adv,"Variance for 1 gaussian is: ",np.min(var),flush=True)
                 return [cdf,pdf,inv_cdf,inv_phi,range_phi_min,count,-1]
 
     count += len(agent_bids)
@@ -143,7 +140,7 @@ def distribution_fitting(bids,agents,key,adv):
     cum_values=sorted(cum_values)
     inv_cdfh = interpolate.interp1d(cum_values, x_range)
     len_hist=pdf_fitted.shape[0]
-    ## What is bin_edges2?
+
     bin_edges2=[x_range[i] for i in range(len_hist)]
     pdfh = interpolate.interp1d(bin_edges2, pdf_fitted,fill_value=(0,0), bounds_error=False)
     # pdfprimeh = interpolate.interp1d(bin_edges2, pdf_prime)
@@ -169,7 +166,7 @@ def distribution_fitting(bids,agents,key,adv):
 
     return [cdf,pdf,inv_cdf,inv_phi,range_phi_min,count,1]
 
-def pickle_fitted_distribution(key,adv,lowVarAdv):
+def pickle_fitted_distribution(key,adv,low_var_adv):
     ##################################################
     ## Model fitting parameters
     ## n_samples: Number of samples to draw from each distribution
@@ -182,75 +179,77 @@ def pickle_fitted_distribution(key,adv,lowVarAdv):
     ## 1bids has all the bids for keyword 1
     ## 1agents has the corresponding agents.
     # Loading the agent and bids
-    with open('data/key-'+str(key), 'rb') as fileOpen:
-        tmp = pickle.load(fileOpen)
+    with open('data/key-'+str(key), 'rb') as f:
+        tmp = pickle.load(f)
 
     bids=tmp["bid"]
     agents=tmp["advertiser"]
 
-    print("calling distribution fitting")
+    print("calling distribution fitting",flush=True)
     ## Get distributions of all agents for the keyword
     [cdf,pdf,inv_cdf,inv_phi,range_phi_min,count,no_error] = distribution_fitting(bids,agents,key,adv)
 
-    if no_error == -1: lowVarAdv.append([adv,key])
+    if no_error == -1: low_var_adv.append([adv,key])
 
-    print("saving files")
+    print("saving fs",flush=True)
     folder="data/keys-"+str(key)+"-adv"+str(adv)+"/"
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    with open(folder+"cdf", 'wb') as file:
-        pickle.dump(cdf, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"pdf", 'wb') as file:
-        pickle.dump(pdf, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"inv_cdf", 'wb') as file:
-        pickle.dump(inv_cdf, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"inv_phi", 'wb') as file:
-        pickle.dump(inv_phi, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"range_phi_min", 'wb') as file:
-        pickle.dump(range_phi_min, file, protocol=pickle.HIGHEST_PROTOCOL)
-    with open(folder+"count", 'wb') as file:
-        pickle.dump(count, file, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"cdf", 'wb') as f:
+        pickle.dump(cdf, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"pdf", 'wb') as f:
+        pickle.dump(pdf, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"inv_cdf", 'wb') as f:
+        pickle.dump(inv_cdf, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"inv_phi", 'wb') as f:
+        pickle.dump(inv_phi, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"range_phi_min", 'wb') as f:
+        pickle.dump(range_phi_min, f, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(folder+"count", 'wb') as f:
+        pickle.dump(count, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     return
 
 
-def main():
+
+####################################################################################
+# Driving function
+####################################################################################
+
+if __name__ == '__main__' :
     start_time = time.time();
     arg=sys.argv
 
     numKey=1009 # Total number of keywords
 
     # load the correlation matrix between keywords
-    with open("data/corr_all_key", 'rb') as fileOpen:
-        corr = pickle.load(fileOpen)
+    with open("data/corr_all_key", 'rb') as f:
+        corr = pickle.load(f)
 
-    # lowVarAdv: stores [adv,key] of low variance advertisers
-    lowVarAdv=[]
+    # low_var_adv: stores [adv,key] of low variance advertisers
+    low_var_adv=[]
 
-    advKeyPair = [set() for i in range(numKey)]
+    adv_key = [set() for i in range(numKey)]
     for key1 in range(numKey):
-        if key1%100==0: print(key1)
+        if key1%100==0: print(key1,flush=True)
         for key2 in range(numKey):
             if(key2<=key1): continue
             if corr[key1][key2]>1:
-                with open("data/keys-"+str(key1)+"-"+str(key2)+"/advertiser", 'rb') as fileOpen:
-                    sharedAdvertisers = pickle.load(fileOpen)
-                for adv in sharedAdvertisers:
-                    advKeyPair[key1].add(adv)
-                    advKeyPair[key2].add(adv)
+                with open("data/keys-"+str(key1)+"-"+str(key2)+"/advertiser", 'rb') as f:
+                    shared_adv = pickle.load(f)
+                for adv in shared_adv:
+                    adv_key[key1].add(adv)
+                    adv_key[key2].add(adv)
 
-    for key in range(len(advKeyPair)):
-        if len(advKeyPair[key])<2: continue;
-        for adv in advKeyPair[key]:
-            print("key:",key,", adv:",adv)
-            pickle_fitted_distribution(key,adv,lowVarAdv)
+    for key in range(len(adv_key)):
+        if len(adv_key[key])<2: continue;
+        for adv in adv_key[key]:
+            print("key:",key,", adv:",adv,flush=True)
+            pickle_fitted_distribution(key,adv,low_var_adv)
 
-    with open("data/lowVarAdv", 'wb') as file:
-        pickle.dump(lowVarAdv, file, protocol=pickle.HIGHEST_PROTOCOL)
-    print(lowVarAdv)
+    with open("data/low_var_adv", 'wb') as f:
+        pickle.dump(low_var_adv, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print(low_var_adv,flush=True)
 
-    print("Time taken : %s seconds" % (time.time() - start_time))
-
-if __name__ == '__main__' :
-    main()
+    print("Time taken : %s seconds" % (time.time() - start_time),flush=True)

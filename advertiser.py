@@ -8,19 +8,6 @@ import matplotlib.pyplot as plt
 numAttr=2;
 
 ####################################################################################
-# General Functions
-####################################################################################
-def reset(adv):
-    """Reset all Advertisers for new Mechanism"""
-    for i in range(len(adv)):
-        adv[i].totalWins = 0
-        adv[i].result = {}
-
-def collectResult(adv,val,userTy):
-    results = [adv[i].getResultG(val,userTy) for i in range(len(adv))]
-    return results
-
-####################################################################################
 #### Functions for Advertiser class
 ####################################################################################
 def resetResult(self):
@@ -73,25 +60,6 @@ def bid2(self, type, iter):#place a bid given the user
 
     return bid,virBid
 
-def updateResult(self, userTy):
-    #self.cost += price #TODO: Update cost
-    self.totalWins += 1
-    if userTy in self.result: self.result[userTy] += 1
-    else: self.result[userTy] = 1
-
-## Get probability of advertiser winning on a particular user type given he won
-def getResultLU(self,val,userTy):
-    if userTy not in self.result: return 0
-    if self.totalWins == 0: return 0
-    else: return self.result[userTy]/self.totalWins
-
-## Get the probability of advertiser winning, given usertype
-def getResultG(self,val,userTy):
-    if userTy not in self.result: return 0
-    if val == 0: return 0
-    else:
-        return self.result[userTy]/val
-
 ####################################################################################
 class Advertiser:
     'Common base class for all Advertiser'
@@ -102,11 +70,8 @@ class Advertiser:
     resetResult=resetResult
     bid=bid
     bid2=bid2
-    getResultLU=getResultLU
-    getResultG=getResultG
-    updateResult=updateResult
 
-    def __init__(self,cdf,inv_cdf,inv_phi,pdf,range_phi_min):
+    def __init__(self,cdf,inv_cdf,inv_phi,pdf,range_phi_min,adv_id):
         global numAttr
         Advertiser.numAdv += 1
         self.cost = 0
@@ -119,6 +84,8 @@ class Advertiser:
         self.inv_cdf = []
         self.inv_phi = []
         self.range_phi_min = []
+
+        self.adv_id = adv_id
 
         for i in range(numAttr):
             self.cdf.append(cdf[i])

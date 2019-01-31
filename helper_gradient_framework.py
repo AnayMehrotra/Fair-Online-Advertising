@@ -4,54 +4,54 @@ from advertiser import *
 ####################################################################################
 # Helper Functions
 ####################################################################################
-def reportError(msg,key1,key2):
+def report_error(msg,key1,key2):
     os.system("echo \""+str(key1)+"-"+str(key2)+": "+msg+"\">> errorsExperiment")
 
-def toRelative(res,numAdv):
+def to_relative(res,numAdv):
     ## Convert "probability of advertiser winning, given usertype" to
     ## "probability of advertiser winning on a particular user type given he won"
-    resRel=copy.deepcopy(res)
+    res_rel=copy.deepcopy(res)
     for i in range(numAdv):
-        tmp=resRel[i][0]+resRel[i][1];
-        resRel[i][0]/=tmp;resRel[i][1]/=tmp
-    resRel=np.around(resRel, decimals=10)
-    return resRel
+        tmp=res_rel[i][0]+res_rel[i][1];
+        res_rel[i][0]/=tmp;res_rel[i][1]/=tmp
+    res_rel=np.around(res_rel, decimals=10)
+    return res_rel
 
 ####################################################################################
 # Functions to gather data
 ####################################################################################
 corr=0 # correlation between different keys
-def getKeyPair(number_of_keys,number_of_cores,corr_local):
+def get_key_pair(number_of_keys,number_of_cores,corr_local):
     global corr
     corr = corr_local
 
-    keyPair=[]
+    key_pair=[]
     for key1 in range(number_of_keys):
         for key2 in range(number_of_keys):
             if key2<=key1 or corr[key1][key2]<2: continue;
-            keyPair.append([key1,key2])
+            key_pair.append([key1,key2])
 
-    def getKey(keyPair):
+    def get_key(key_pair):
         global corr
-        return int(corr[keyPair[0]][keyPair[1]])
+        return int(corr[key_pair[0]][key_pair[1]])
 
-    keyPair=sorted(keyPair,key=getKey,reverse=True)
-    print("numer of key pairs found", len(keyPair))
-    return keyPair
+    key_pair=sorted(key_pair,key=get_key,reverse=True)
+    print("number of key pairs found", len(key_pair), flush=True)
+    return key_pair
 
-def getAdv(key1,key2):
+def get_adv(key1,key2):
     folder="data/keys-"+str(key1)+"-"+str(key2)+"/"
     ## Maximum number of advertisers
-    sharedAdvertisers = pickle.load(open(folder+"/advertiser", 'rb'))
-    lowVarAdvKeyPair = pickle.load(open("data/lowVarAdv", 'rb'))
-    lowVarAdv  = set()
-    for pair in lowVarAdvKeyPair:
+    shared_adv = pickle.load(open(folder+"/advertiser", 'rb'))
+    low_var_adv_tmp = pickle.load(open("data/low_var_adv", 'rb'))
+    low_var_adv  = set()
+    for pair in low_var_adv_tmp:
         if pair[1]==key1 or pair[1]==key2:
-            lowVarAdv.add(pair[0])
+            low_var_adv.add(pair[0])
 
-    sharedAdvertisers = sharedAdvertisers.difference(lowVarAdv)
-    numAdv=len(sharedAdvertisers);
-    if(len(sharedAdvertisers)<2):
+    shared_adv = shared_adv.difference(low_var_adv)
+    numAdv=len(shared_adv);
+    if(len(shared_adv)<2):
         print("numAdv:",numAdv,flush=True)
         reportError("Only "+str(numAdv)+ " advertiser",key1,key2);
         return -1,-1,-1
@@ -71,8 +71,10 @@ def getAdv(key1,key2):
     pdf_arr = [[] for a in range(numAttr)]
     cdf_arr = [[] for a in range(numAttr)]
 
+    adv_id = []
+
     i=0
-    for adv in sharedAdvertisers:
+    for adv in shared_adv:
         if i >= numAdv: break
         folder="data/keys-"+str(key1)+"-adv"+str(adv)+"/"
         tmpcdf = pickle.load(open(folder+"cdf", 'rb'))
@@ -88,9 +90,12 @@ def getAdv(key1,key2):
 
         pdf_arr[0].append(pickle.load(open(folder+"pdf_array_virtual_valuation", 'rb')))
         cdf_arr[0].append(pickle.load(open(folder+"cdf_array_virtual_valuation", 'rb')))
+
+        adv_id.append(adv)
+
         i+=1
     i=0
-    for adv in sharedAdvertisers:
+    for adv in shared_adv:
         if i >= numAdv: break
         folder="data/keys-"+str(key2)+"-adv"+str(adv)+"/"
         tmpcdf = pickle.load(open(folder+"cdf", 'rb'))
@@ -110,7 +115,7 @@ def getAdv(key1,key2):
 
     adv = []
     for i in range(numAdv):
-        adv.append(Advertiser(cdf[i],inv_cdf[i],inv_phi[i],pdf[i],range_phi_min[i]))
+        adv.append(Advertiser(cdf[i],inv_cdf[i],inv_phi[i],pdf[i],range_phi_min[i],adv_id[i]))
 
     return adv,pdf_arr,cdf_arr
 
@@ -136,11 +141,11 @@ def getPdfCdf(a,i):
     return pdf,cdf
 
 
-def get_revenue_array(adv,shift,uT):
+def get_low_var_adv(adv,shift,uT):
     iter = 10000;
 
     if len(adv) != len(shift):
-        print("Error! len(adv) != len(shift)"+str(len(adv))+"!="+str(len(shift)))
+        print("Error! len(adv) != len(shift)"+str(len(adv))+"!="+str(len(shift)), flush=True)
 
     numAdv=len(adv)
     bids = [ [] for i in range(numAdv)]
@@ -168,7 +173,7 @@ def get_revenue_array(adv,shift,uT):
     query = [[] for i in range(numAdv)]
     when  = [[] for i in range(numAdv)]
     who   = []
-    revenueArray=[];
+    revonue_array=[];
 
     j=0;i=0;
     for it in range(int(iter)):
@@ -190,7 +195,7 @@ def get_revenue_array(adv,shift,uT):
         j=runUp[it];i=who[it]
         tmp=ans[i][cnt[i]]
         tmp=min(tmp,bids[j][it])
-        revenueArray.append(tmp)
+        revonue_array.append(tmp)
         cnt[i]+=1
 
-    return revenueArray
+    return revonue_array

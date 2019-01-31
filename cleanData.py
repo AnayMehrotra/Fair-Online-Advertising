@@ -1,6 +1,8 @@
 import numpy as np
 import csv, pickle, itertools, os
 from collections import Counter
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 ########################################################
 ## Sample data
@@ -14,58 +16,54 @@ def plotBlockCorr():
     def dfs(i,vis,corr):
         vis[i]=1
         cur=set([i])
-        for j in range(numKey):
+        for j in range(number_of_keys):
             if corr[i][j]<2 or vis[j] == 1: continue
             cur=cur.union(dfs(j,vis,corr))
         return cur
 
     # Make blocks
-    numKey = 1009
-    with open('data/corr_all_key', 'rb') as file:
-        corr = pickle.load(file)
-    vis = [0 for i in range(numKey)]
+    number_of_keys = 1009
+    with open('data/corr_all_key', 'rb') as f:
+        corr = pickle.load(f)
+    vis = [0 for i in range(number_of_keys)]
 
-    connectedComp = []
-    for i in range(numKey):
-        if i%100 == 0: print(i)
+    connected_comp = []
+    for i in range(number_of_keys):
+        if i%100 == 0: print(i,flush=True)
         if vis[i]==0:
-            connectedComp.append(dfs(i,vis,corr))
+            connected_comp.append(dfs(i,vis,corr))
 
-    connectedComp=sorted(connectedComp,key=len,reverse=True)
+    connected_comp=sorted(connected_comp,key=len,reverse=True)
 
-    blockCorr = np.zeros((numKey,numKey))
-    mp = [0 for i in range(numKey)]
-    newIndex = 0
+    block_corr = np.zeros((number_of_keys,number_of_keys))
+    mp = [0 for i in range(number_of_keys)]
+    new_index = 0
 
     ## Reindex values
-    for component in connectedComp:
+    for component in connected_comp:
         for i in component:
-            mp[i] = newIndex
-            newIndex += 1
+            mp[i] = new_index
+            new_index += 1
 
     ## Make new matrix
-    for component in connectedComp:
+    for component in connected_comp:
         for r,c in itertools.product(component,component):
-                blockCorr[mp[r]][mp[c]] = corr[r][c]
-
-    import seaborn as sns
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
+                block_corr[mp[r]][mp[c]] = corr[r][c]
 
     ## Threshold matrix
-    blockCorr[blockCorr<2]=0
-    blockCorr[blockCorr>=2]=1
+    block_corr[block_corr<2]=0
+    block_corr[block_corr>=2]=1
 
-    blockCorr[blockCorr==0]=-1
-    blockCorr[blockCorr==1]=0
-    blockCorr[blockCorr==-1]=1
+    block_corr[block_corr==0]=-1
+    block_corr[block_corr==1]=0
+    block_corr[block_corr==-1]=1
 
-    print(np.max(blockCorr))
+    print(np.max(block_corr),flush=True)
 
     f, ax = plt.subplots()
     # 'nearest' interpolation - faithful but blocky
-    ax.imshow(blockCorr,cmap=cm.Greys_r)
-    # ax.imshow(blockCorr,cmap="hot")
+    ax.imshow(block_corr,cmap=cm.Greys_r)
+    # ax.imshow(block_corr,cmap="hot")
     plt.xlabel('Keywords',fontsize=19)
     plt.ylabel('Keywords',fontsize=19)
     plt.xticks([])
@@ -73,6 +71,47 @@ def plotBlockCorr():
     # plt.title('Keywords sharing at least 2 advertisers')
     plt.savefig('../block_matrix_2.eps', format='eps', dpi=200)
     plt.show()
+
+## run after distribution fitting
+def get_percentage_of_bids_removed():
+    with open("data/lowVarAdv", 'rb') as f:
+        low_var_adv = pickle.load(f)
+
+    initial_bids = 0
+    final_bids = 0
+
+    ## Remove advertisers with less than 1000 bids
+    print("Finding bad advertisers",flush=True)
+    to_delete = [set() for i in range(1009)]
+    for i in range(10475):
+        with open('raw_data/advertiser-'+str(i), 'rb') as f:
+            adv = pickle.load(f)
+            initial_bids += len(adv["bid"])
+            ## Basic sanity check: remove advertisers bidding less than 2 keywords
+            clean_adv={"bid":[],"key":[]}
+            key_map  = Counter(adv["key"])
+            uniq_keys = len(key_map.keys())
+            if i % 100 == 0:
+                print(i,flush=True)
+            for k in key_map.keys():
+                if key_map[k] < 1000:
+                    to_delete[k].add(i)
+                    uniq_keys -= 1
+            if uniq_keys < 2:
+                for k in key_map.keys():
+                    to_delete[k].add(i)
+                continue
+            for j in range(len(adv["bid"])):
+                if(key_map[adv["key"][j]] > 999):
+                    clean_adv["key"].append(adv["key"][j])
+                    clean_adv["bid"].append(adv["bid"][j])
+                    if [i,adv["key"][j]] not in low_var_adv:
+                        final_bids +=1
+            with open('data/advertiser-'+str(i), 'wb') as f:
+                pickle.dump(adv, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        print(100*final_bids/(1.0*initial_bids),"% of bids retained.",flush=True)
+
 
 
 ## FUNCTION 1
@@ -87,34 +126,34 @@ def plotBlockCorr():
 ##               key: ID of keyword on which bid was placed
 ########################################################
 def getRawData():
-    print("Building arrays.")
+    print("Building arrays.",flush=True)
     key        = [{"bid":[],"advertiser":[]} for i in range(1009)]
     advertiser = [{"bid":[],"key":[]} for i in range(11009)]
 
     os.system("mkdir raw_data")
 
-    with open('Webscope_A1/ydata-ysm-advertiser-bids-v1_0.txt') as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter='\t')
-        print("Reading file.")
+    with open('Webscope_A1/ydata-ysm-advertiser-bids-v1_0.txt') as csv_f:
+        csv_reader = csv.reader(csv_f, delimiter='\t')
+        print("Reading f.",flush=True)
         for i,row in enumerate(csv_reader):
-            curAdv=int(row[2])
-            curKey=int(row[1])
-            curBid=float(row[3])
-            print(str(curAdv)+", "+str(curKey)+", "+str(curBid))
-            key[curKey]["bid"].append(curBid)
-            key[curKey]["advertiser"].append(curAdv)
-            advertiser[curAdv]["bid"].append(curBid)
-            advertiser[curAdv]["key"].append(curKey)
+            cur_adv=int(row[2])
+            cur_key=int(row[1])
+            cur_bid=float(row[3])
+            if i %= 1000000: print(str(cur_adv)+", "+str(cur_key)+", "+str(cur_bid),flush=True)
+            key[cur_key]["bid"].append(cur_bid)
+            key[cur_key]["advertiser"].append(cur_adv)
+            advertiser[cur_adv]["bid"].append(cur_bid)
+            advertiser[cur_adv]["key"].append(cur_key)
 
         for i in range(len(advertiser)):
             if(len(advertiser[i]["bid"])==0):
                 break;
-            with open("raw_data/advertiser-"+str(i), 'wb') as file:
-                pickle.dump(advertiser[i], file, protocol=pickle.HIGHEST_PROTOCOL)
+            with open("raw_data/advertiser-"+str(i), 'wb') as f:
+                pickle.dump(advertiser[i], f, protocol=pickle.HIGHEST_PROTOCOL)
 
         for i in range(len(key)):
-            with open("raw_data/key-"+str(i), 'wb') as file:
-                pickle.dump(key[i], file, protocol=pickle.HIGHEST_PROTOCOL)
+            with open("raw_data/key-"+str(i), 'wb') as f:
+                pickle.dump(key[i], f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 ## FUNCTION 2
@@ -124,102 +163,153 @@ def getRawData():
 ## Remove advertisers with less than 2 keywords
 ########################################################
 def cleanData():
-    initialBids = 0
-    finalBids = 0
+    os.system("mkdir data")
+
+    initial_bids = 0
+    final_bids = 0
     ## Remove advertisers with less than 1000 bids
-    print("Finding bad advertisers")
-    toDelete = [set() for i in range(1009)]
+    print("Finding bad advertisers",flush=True)
+    to_delete = [set() for i in range(1009)]
     for i in range(10475):
-        with open('raw_data/advertiser-'+str(i), 'rb') as fileOpen:
-            adv = pickle.load(fileOpen)
-            initialBids += len(adv["bid"])
+        with open('raw_data/advertiser-'+str(i), 'rb') as f:
+            adv = pickle.load(f)
+            initial_bids += len(adv["bid"])
             ## Basic sanity check: remove advertisers bidding less than 2 keywords
-            cleanAdv={"bid":[],"key":[]}
-            keyMap  = Counter(adv["key"])
-            uniqKeys = len(keyMap.keys())
-            if i % 100 == 0:
-                print(i)
-            for k in keyMap.keys():
-                if keyMap[k] < 1000:
-                    toDelete[k].add(i)
-                    uniqKeys -= 1
-            if uniqKeys < 2:
-                for k in keyMap.keys():
-                    toDelete[k].add(i)
+            clean_adv={"bid":[],"key":[]}
+            key_map  = Counter(adv["key"])
+            uniq_keys = len(key_map.keys())
+            if i % 1000 == 0:
+                print(i,flush=True)
+            for k in key_map.keys():
+                if key_map[k] < 1000:
+                    to_delete[k].add(i)
+                    uniq_keys -= 1
+            if uniq_keys < 2:
+                for k in key_map.keys():
+                    to_delete[k].add(i)
                 continue
             for j in range(len(adv["bid"])):
-                if(keyMap[adv["key"][j]] > 999):
-                    cleanAdv["key"].append(adv["key"][j])
-                    cleanAdv["bid"].append(adv["bid"][j])
-            finalBids += len(cleanAdv["bid"])
-            with open('data/advertiser-'+str(i), 'wb') as fileSave:
-                pickle.dump(adv, fileSave, protocol=pickle.HIGHEST_PROTOCOL)
+                if(key_map[adv["key"][j]] > 999):
+                    clean_adv["key"].append(adv["key"][j])
+                    clean_adv["bid"].append(adv["bid"][j])
+            final_bids += len(clean_adv["bid"])
 
-    print(100*finalBids/(1.0*initialBids),"% of bids retained.")
+            with open('data/advertiser-'+str(i), 'wb') as f:
+                pickle.dump(adv, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print(100*final_bids/(1.0*initial_bids),"% of bids retained.",flush=True)
 
     ## Modify bids correspondingly
-    print("Modifing keys")
+    print("Modifing keys",flush=True)
     for i in range(1009):
-        print(str(i))
-        with open('raw_data/key-'+str(i), 'rb') as fileOpen:
-            key = pickle.load(fileOpen)
-            cleanKey ={"bid":[],"advertiser":[]}
+        if i%100==0: print(str(i),flush=True)
+        with open('raw_data/key-'+str(i), 'rb') as f:
+            key = pickle.load(f)
+            clean_key ={"bid":[],"advertiser":[]}
             for j in range(len(key["bid"])):
-                if(key["advertiser"][j] not in toDelete[i]):
-                    cleanKey["advertiser"].append(key["advertiser"][j])
-                    cleanKey["bid"].append(key["bid"][j])
-            with open("data/key-"+str(i), 'wb') as file:
-                print("dump clean key")
-                pickle.dump(cleanKey, file, protocol=pickle.HIGHEST_PROTOCOL)
+                if(key["advertiser"][j] not in to_delete[i]):
+                    clean_key["advertiser"].append(key["advertiser"][j])
+                    clean_key["bid"].append(key["bid"][j])
+            with open("data/key-"+str(i), 'wb') as f:
+                if i%100==0: print("dump clean key",flush=True)
+                pickle.dump(clean_key, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 ## FUNCTION 3
-def getPercentageOfBidsRemoved():
-    with open("data/lowVarAdv", 'rb') as fileOpen:
-        lowVarAdvKeyPair = pickle.load(fileOpen)
+def get_correlation_and_bids():
+    number_of_keys = 1009
 
-    initialBids = 0
-    finalBids = 0
-        ## Remove advertisers with less than 1000 bids
-    print("Finding bad advertisers")
-    toDelete = [set() for i in range(1009)]
-    for i in range(10475):
-        with open('raw_data/advertiser-'+str(i), 'rb') as fileOpen:
-            adv = pickle.load(fileOpen)
-            initialBids += len(adv["bid"])
-            ## Basic sanity check: remove advertisers bidding less than 2 keywords
-            cleanAdv={"bid":[],"key":[]}
-            keyMap  = Counter(adv["key"])
-            uniqKeys = len(keyMap.keys())
-            if i % 100 == 0:
-                print(i)
-            for k in keyMap.keys():
-                if keyMap[k] < 1000:
-                    toDelete[k].add(i)
-                    uniqKeys -= 1
-            if uniqKeys < 2:
-                for k in keyMap.keys():
-                    toDelete[k].add(i)
-                continue
-            for j in range(len(adv["bid"])):
-                if(keyMap[adv["key"][j]] > 999):
-                    cleanAdv["key"].append(adv["key"][j])
-                    cleanAdv["bid"].append(adv["bid"][j])
-                    if [i,adv["key"][j]] not in lowVarAdvKeyPair:
-                        finalBids +=1
-            with open('data/advertiser-'+str(i), 'wb') as fileSave:
-                pickle.dump(adv, fileSave, protocol=pickle.HIGHEST_PROTOCOL)
+    ## keys: Details of key
+    keys = []
+    for i in range(number_of_keys):
+        if i%100==0: print(i,flush=True)
+        with open('data/key-'+str(i), 'rb') as f:
+            tmp = pickle.load(f)
+            keys.append(tmp)
 
-        print(100*finalBids/(1.0*initialBids),"% of bids retained.")
+    ## List of (Set of keywords for each Advertiser)
+    ## good_adv[i] = Set of top keywords for advertiser i
+    good_adv = []
+    ## List of (Count of bids by some advertiser for some keyword)
+    ## cnt_bid_adv[i][j] = Count of bids by advertiser j for keyword i
+    cnt_bid_adv = []
+    tot=0
+    for kkk,k in enumerate(keys):
+        if kkk%100==0: print(kkk,flush=True)
+        ## cnt_adv[i][0]: (count of of bids by advertiser i on current key (k) )
+        ## cnt_adv[i][1]: i
+        cnt_adv=[[0,i] for i in range(12000)]
+        ## calculate values of cnt_adv
+        for a in k["advertiser"]:
+            cnt_adv[a][0]+=1
+        ## cnt_adv[i]: touple(count of of bids by i-th largest advertiser on current key (k) , index of advertiser)
+        cnt_adv.sort(reverse=True)
+
+        ## cur_adv: Set of advertisers for current key
+        cur_adv=set()
+        ## tmp[i] number of bids by advertiser i on current keyword
+        ## Stores data for 20 largest advertisers
+        tmp={}
+        for i in range(len(cnt_adv)):
+            ## Only take advertisers who bid more that 1000 times.
+            if cnt_adv[i][0]>1000:
+                tot+=cnt_adv[i][0]
+                tmp[cnt_adv[i][1]]=cnt_adv[i][0]
+                cur_adv.add(cnt_adv[i][1])
+
+        cnt_bid_adv.append(tmp)
+        good_adv.append(cur_adv)
+
+    with open("data/cnt_bid_adv", 'wb') as f:
+        pickle.dump(cnt_bid_adv, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    ## Corr: correlation matrix of bids
+    ## corr[i][j]: number of advertiser shared between key i and j, only advertisers among top 20 for each
+    corr = np.zeros((number_of_keys,number_of_keys))
+    for i,j in itertools.product(range(number_of_keys),range(number_of_keys)):
+            corr[i][j]+=len(good_adv[i].intersection(good_adv[j]));
+
+    with open("data/"+"corr_all_key", 'wb') as f:
+        pickle.dump(corr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    to_delete = set()
+    ## Remove bids which don't share any keyword
+    for i in range(number_of_keys):
+        Del=True
+        for j in range(number_of_keys):
+            if(j<=i):continue
+            if corr[i][j]>1:
+                Del=False
+        if Del: to_delete.add(i);
+
+
+    ## Tot: total bids placed on top 50 keywords
+    ## cnt: total bids places on suitable pair of top 50 keywords
+    tot=number_of_keys*number_of_keys;
+    cnt=0;
+    for i,j in itertools.product(range(number_of_keys),range(number_of_keys)):
+        if j>i and corr[i][j]>=2:
+            cnt+=1
+            folder="data/keys-"+str(i)+"-"+str(j)
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+            with open(folder+"/advertiser", 'wb') as f:
+                pickle.dump(good_adv[i].intersection(good_adv[j]), f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    tot=number_of_keys*number_of_keys;
+    print("Fraction of suitable pairs: "+str(cnt/(tot*1.0)),flush=True)
+    a=np.zeros((number_of_keys,number_of_keys))
+    a[corr>=2]=1;
+    print("Fraction of suitable pairs: "+str(a.mean()/2),flush=True)
 
 
 def main():
-    print("getting raw data...")
+    print("getting raw data...",flush=True)
     getRawData()
-    print("got raw data. cleaning data...")
+    print("got raw data. cleaning data...",flush=True)
     cleanData()
-    print("cleaned data. calculating bids removed...")
-    getPercentageOfBidsRemoved()
-    print("done.")
+    print("cleaned data. finding correlation and counting bids...",flush=True)
+    get_correlation_and_bids()
+    print("done.",flush=True)
 
 
 if __name__ == '__main__' :
