@@ -7,11 +7,11 @@ from advertiser import *
 def report_error(msg,key1,key2):
     os.system("echo \""+str(key1)+"-"+str(key2)+": "+msg+"\">> errorsExperiment")
 
-def to_relative(res,numAdv):
+def to_relative(res,num_adv):
     ## Convert "probability of advertiser winning, given usertype" to
     ## "probability of advertiser winning on a particular user type given he won"
     res_rel=copy.deepcopy(res)
-    for i in range(numAdv):
+    for i in range(num_adv):
         tmp=res_rel[i][0]+res_rel[i][1];
         res_rel[i][0]/=tmp;res_rel[i][1]/=tmp
     res_rel=np.around(res_rel, decimals=10)
@@ -50,10 +50,10 @@ def get_adv(key1,key2):
             low_var_adv.add(pair[0])
 
     shared_adv = shared_adv.difference(low_var_adv)
-    numAdv=len(shared_adv);
+    num_adv=len(shared_adv);
     if(len(shared_adv)<2):
-        print("numAdv:",numAdv,flush=True)
-        reportError("Only "+str(numAdv)+ " advertiser",key1,key2);
+        print("num_adv:",num_adv,flush=True)
+        reportError("Only "+str(num_adv)+ " advertiser",key1,key2);
         return -1,-1,-1
 
     ## Folder to load pdf and cdf
@@ -62,11 +62,11 @@ def get_adv(key1,key2):
     ##################################################
     ## Get distributions of advertisers
     ##################################################
-    cdf=[[] for i in range(numAdv)];
-    pdf=[[] for i in range(numAdv)];
-    inv_cdf=[[] for i in range(numAdv)];
-    inv_phi=[[] for i in range(numAdv)];
-    range_phi_min=[[] for i in range(numAdv)]
+    cdf=[[] for i in range(num_adv)];
+    pdf=[[] for i in range(num_adv)];
+    inv_cdf=[[] for i in range(num_adv)];
+    inv_phi=[[] for i in range(num_adv)];
+    range_phi_min=[[] for i in range(num_adv)]
 
     pdf_arr = [[] for a in range(numAttr)]
     cdf_arr = [[] for a in range(numAttr)]
@@ -75,7 +75,7 @@ def get_adv(key1,key2):
 
     i=0
     for adv in shared_adv:
-        if i >= numAdv: break
+        if i >= num_adv: break
         folder="data/keys-"+str(key1)+"-adv"+str(adv)+"/"
         tmpcdf = pickle.load(open(folder+"cdf", 'rb'))
         tmpinv_cdf = pickle.load(open(folder+"inv_cdf", 'rb'))
@@ -96,7 +96,7 @@ def get_adv(key1,key2):
         i+=1
     i=0
     for adv in shared_adv:
-        if i >= numAdv: break
+        if i >= num_adv: break
         folder="data/keys-"+str(key2)+"-adv"+str(adv)+"/"
         tmpcdf = pickle.load(open(folder+"cdf", 'rb'))
         tmpinv_cdf = pickle.load(open(folder+"inv_cdf", 'rb'))
@@ -114,7 +114,7 @@ def get_adv(key1,key2):
         i+=1
 
     adv = []
-    for i in range(numAdv):
+    for i in range(num_adv):
         adv.append(Advertiser(cdf[i],inv_cdf[i],inv_phi[i],pdf[i],range_phi_min[i],adv_id[i]))
 
     return adv,pdf_arr,cdf_arr
@@ -141,18 +141,18 @@ def getPdfCdf(a,i):
     return pdf,cdf
 
 
-def get_low_var_adv(adv,shift,uT):
+def get_revenue_array(adv,shift,uT):
     iter = 10000;
 
     if len(adv) != len(shift):
         print("Error! len(adv) != len(shift)"+str(len(adv))+"!="+str(len(shift)), flush=True)
 
-    numAdv=len(adv)
-    bids = [ [] for i in range(numAdv)]
-    virB = [ [] for i in range(numAdv)]
+    num_adv=len(adv)
+    bids = [ [] for i in range(num_adv)]
+    virB = [ [] for i in range(num_adv)]
 
     # Getting bids
-    for i in range(numAdv):
+    for i in range(num_adv):
         bids[i],virB[i]=adv[i].bid2(uT,10+int(iter))
     bids=np.array(bids);virB=np.array(virB);
 
@@ -162,7 +162,7 @@ def get_low_var_adv(adv,shift,uT):
     runUp = np.array([-1 for i in range(int(iter))])
     for j in range(int(iter)):
         run=-1;se=-100;
-        for i in range(numAdv):
+        for i in range(num_adv):
             if i == winner[j]: continue;
             if se<abc[i][j]:
                 se=abc[i][j];
@@ -170,8 +170,8 @@ def get_low_var_adv(adv,shift,uT):
 
     # Calculating payment
     pay=[]
-    query = [[] for i in range(numAdv)]
-    when  = [[] for i in range(numAdv)]
+    query = [[] for i in range(num_adv)]
+    when  = [[] for i in range(num_adv)]
     who   = []
     revonue_array=[];
 
@@ -189,8 +189,11 @@ def get_low_var_adv(adv,shift,uT):
         who.append(i)
 
     ## Get answers to bulk queries
-    ans = [ adv[i].inv_phi[uT](query[i]) for i in range(numAdv)]
-    cnt = [0 for i in range(numAdv)]
+    try:
+        ans = [ adv[i].inv_phi[uT](query[i]) for i in range(num_adv)]
+    except:
+        return -1
+    cnt = [0 for i in range(num_adv)]
     for it in range(int(iter)):
         j=runUp[it];i=who[it]
         tmp=ans[i][cnt[i]]
@@ -199,3 +202,29 @@ def get_low_var_adv(adv,shift,uT):
         cnt[i]+=1
 
     return revonue_array
+
+# Runs the \alpha-shifted auction and returns coverage
+def shiftedMyer(adv,shift,uT,stats=0):
+    iter=10000
+    num_adv=len(adv)
+
+    ## Get virtual bids
+    virB = [ [] for i in range(num_adv) ]
+    for i in range(num_adv):
+        virB[i]=adv[i].bid(uT,10+int(iter))
+    virB=np.array(virB)
+
+    # calculate the winner
+    print("virb",virB)
+    print("shift",shift)
+    tmp = virB+shift.reshape((-1,1))
+    winner = np.argmax(tmp,axis=0)
+
+    results=np.zeros(num_adv)
+    for w in winner: results[w]+=1
+    results /= iter*1.0
+
+    #Scaling according to user distribution
+    results*=0.5
+
+    return results

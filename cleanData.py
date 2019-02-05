@@ -139,7 +139,7 @@ def getRawData():
             cur_adv=int(row[2])
             cur_key=int(row[1])
             cur_bid=float(row[3])
-            if i %= 1000000: print(str(cur_adv)+", "+str(cur_key)+", "+str(cur_bid),flush=True)
+            if i%100000==0: print(str(cur_adv)+", "+str(cur_key)+", "+str(cur_bid),flush=True)
             key[cur_key]["bid"].append(cur_bid)
             key[cur_key]["advertiser"].append(cur_adv)
             advertiser[cur_adv]["bid"].append(cur_bid)
@@ -178,7 +178,7 @@ def cleanData():
             clean_adv={"bid":[],"key":[]}
             key_map  = Counter(adv["key"])
             uniq_keys = len(key_map.keys())
-            if i % 1000 == 0:
+            if i % 100 == 0:
                 print(i,flush=True)
             for k in key_map.keys():
                 if key_map[k] < 1000:

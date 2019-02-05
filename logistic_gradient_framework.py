@@ -33,11 +33,11 @@ def getKeyPair():
 ####################################################################################
 # Functions to run experiments
 ####################################################################################
-def main(thread_index):
+def main(thread_index, number_of_cores):
     start_time = time.time();
 
     number_of_keys=1009
-    number_of_cores=14
+    #number_of_cores=14
     low_var_adv_tmp = pickle.load(open("data/low_var_adv", 'rb'))
     with open("data/corr_all_key", 'rb') as f:
         corr = pickle.load(f)
@@ -129,4 +129,4 @@ def generate_pdf_cdf_arrays(key,adv):
 
 if __name__ == '__main__' :
     arg=sys.argv
-    main(int(arg[1]))
+    main(int(arg[1]), int(arg[2]))

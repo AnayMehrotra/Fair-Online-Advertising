@@ -3,33 +3,6 @@ import pickle, time, os, itertools
 import numpy as np
 import matplotlib.pyplot as plt
 
-def main():
-    sys.stdout = open('Plot_experiment_03Jan.txt','w')
-
-    mean1,std1=get_rev_ratio();
-    print("Done with std error calculation", flush=True)
-
-    mean2,std2=get_tv_distance();
-    print("Done with TV norm calculation", flush=True)
-
-    mean3,std3=get_selection_lift();
-    print("Done with TV norm calculation", flush=True)
-
-    plot_unbalance()
-
-    print("Results", flush=True)
-    print("revenue ratio", flush=True)
-    print(mean1, flush=True)
-    print(std1, flush=True)
-    print("tv distance", flush=True)
-    print(mean2, flush=True)
-    print(std2, flush=True)
-    print("selection lift", flush=True)
-    print(mean3, flush=True)
-    print(std3, flush=True)
-
-if __name__ == '__main__' :
-    main()
 
 ## Hepler to get_rev_ratio
 def get_rev_ratio_helper(k1,k2,shift,numAdv,adv,constraints):
@@ -49,8 +22,10 @@ def get_rev_ratio_helper(k1,k2,shift,numAdv,adv,constraints):
         revenue_unconstrained_ = [np.array([]),np.array([])]
 
         for uT in range(numAttr):
-            revenue_constrained_[uT]=hgf.get_revenue_array(adv,shift[p][:,uT].reshape(-1,1),uT,stats=0);
-            revenue_unconstrained_[uT]=hgf.get_revenue_array(adv,np.zeros((numAdv,numAttr))[:,uT],uT,stats=0)
+            revenue_constrained_[uT]=hgf.get_revenue_array(adv,shift[p][:,uT].reshape(-1,1),uT);
+            revenue_unconstrained_[uT]=hgf.get_revenue_array(adv,np.zeros((numAdv,numAttr))[:,uT],uT)
+            if revenue_constrained_[uT]==-1 or revenue_unconstrained_[uT]==-1:
+                return -1,-1
         revenue_constrained_=np.sum(revenue_constrained_,axis=0)
         revenue_unconstrained_=np.sum(revenue_unconstrained_,axis=0)
 
@@ -67,7 +42,6 @@ def get_rev_ratio():
 
 
     number_of_keys=1009
-    number_of_cores=45
     constraints = [0,0.1,0.2,0.3,0.4,0.45,0.5]
 
 
@@ -82,9 +56,10 @@ def get_rev_ratio():
 
     failed_count = 0
     cnt_auc = 0
+    bad_keys = [[-1,-1]]#[[10,588],[588,647]]
     for ijk,[key1,key2] in enumerate(unbalanced_set):
         folder="data/keys-"+str(key1)+"-"+str(key2)+"/experiment_gradient_algorithm_Result"
-        if not os.path.exists(folder):
+        if not os.path.exists(folder) or [key1,key2] in bad_keys:
             print("Does not exist! "+folder, flush=True)
             failed_count += 1
             continue;
@@ -104,6 +79,10 @@ def get_rev_ratio():
 
         result_cons_,resultUncons_ = get_rev_ratio_helper(key1,key2,shift,numAdv,adv,constraints)
 
+        if result_cons_ == -1 or resultUncons_ == -1:
+            failed_count += 1
+            continue;
+
         cnt_auc += 1
 
         result_index.append(ijk)
@@ -111,8 +90,8 @@ def get_rev_ratio():
             result_cons[i].append(result_cons_[i]);
             resultUncons[i].append(resultUncons_[i]);
 
-        pickle.dump(result_cons,open("revenue_constrained","wb"))
-        pickle.dump(resultUncons,open("revenue_unconstrained","wb"))
+    pickle.dump(result_cons,open("revenue_constrained","wb"))
+    pickle.dump(resultUncons,open("revenue_unconstrained","wb"))
 
     print("Done running auctions", "successful runs", cnt_auc, "failed runs", failed_count, flush=True)
 
@@ -139,9 +118,10 @@ def get_rev_ratio():
                 denominator+=max(revenue_unconstrained[p][j][0][i],0);
             tmp.append(numerator/(denominator+1e-12))
 
-    ratio.append(tmp);
-    ratio_mean[p]=np.mean(tmp)
-    ratio_err[p]=np.std(tmp);
+        ratio.append(tmp);
+        ratio_mean[p]=np.mean(tmp)
+        ratio_err[p]=np.std(tmp);
+
     pickle.dump(ratio_mean,open("revenue_ratio_mean","wb"))
     pickle.dump(ratio_err,open("revenue_ratio_err","wb"))
 
@@ -171,7 +151,6 @@ def get_rev_ratio():
 
 def get_tv_distance_helper(k1,k2,alpha,numAdv, adv,constraints,split):
     start_time=time.time()
-    f.iter = 10000
 
     tv_dist_   = [ [0 for i in range(split)] for p in constraints ]
     print(alpha, flush=True)
@@ -182,8 +161,8 @@ def get_tv_distance_helper(k1,k2,alpha,numAdv, adv,constraints,split):
         resCons_ = [np.array([]),np.array([])]
         resUncons_ = [np.array([]),np.array([])]
         for uT in range(numAttr):
-            resCons_[uT]=f.shiftedMyer(adv,alpha[p][:,uT],uT,stats=0);
-            resUncons_[uT]=f.shiftedMyer(adv,np.zeros((numAdv,numAttr))[:,uT],uT,stats=0)
+            resCons_[uT]=hgf.shiftedMyer(adv,alpha[p][:,uT],uT,stats=0);
+            resUncons_[uT]=hgf.shiftedMyer(adv,np.zeros((numAdv,numAttr))[:,uT],uT,stats=0)
         print("Unconstrained",resUncons_, flush=True)
         print("constrained",resCons_, flush=True)
         for i in range(split):
@@ -208,7 +187,6 @@ def get_tv_distance():
     start_time = time.time();
 
     number_of_keys = 1009
-    number_of_cores = 45
     constraints = [0,0.1,0.2,0.3,0.4,0.45,0.5]
 
     ## Results from iter runs of the experiment
@@ -291,7 +269,6 @@ def get_selection_lift():
     start_time = time.time()
 
     number_of_keys = 1009
-    number_of_cores = 45
     constraints = [0, 0.1, 0.2, 0.3, 0.4, 0.45, 0.5]
 
     ## Results from iter runs of the experiment
@@ -318,7 +295,6 @@ def get_selection_lift():
         constraints = result["constraints"]
 
         cnt_auc += 1
-        result_index.append(ijk)
         for i in range(len(constraints)):
             for j in range(numAdv):
                 x = coverage[i][0][j][0]
@@ -372,3 +348,38 @@ def get_selection_lift():
     # plt.show()
 
     return sl_mean, sl_err
+
+def main():
+    #mean1,std1=get_rev_ratio();
+    #print("Done with std error calculation", flush=True)
+    #print("revenue ratio", flush=True)
+    #print(mean1, flush=True)
+    #print(std1, flush=True)
+
+    #mean2,std2=get_tv_distance();
+    #print("Done with TV norm calculation", flush=True)
+    #print("tv distance", flush=True)
+    #print(mean2, flush=True)
+    #print(std2, flush=True)
+
+    mean3,std3=get_selection_lift();
+    print("Done with TV norm calculation", flush=True)
+    print("selection lift", flush=True)
+    print(mean3, flush=True)
+    print(std3, flush=True)
+
+    plot_unbalance()
+
+    print("Results", flush=True)
+    #print("revenue ratio", flush=True)
+    #print(mean1, flush=True)
+    #print(std1, flush=True)
+    #print("tv distance", flush=True)
+    #print(mean2, flush=True)
+    #print(std2, flush=True)
+    print("selection lift", flush=True)
+    print(mean3, flush=True)
+    print(std3, flush=True)
+
+if __name__ == '__main__' :
+    main()

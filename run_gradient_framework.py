@@ -16,7 +16,7 @@ def run_experiment(thread_index):
     start_time = time.time();
 
     number_of_keys=1009
-    number_of_cores=45
+    number_of_cores=14
     constraint=[0,0.1,0.2,0.3,0.4,0.45,0.5]
 
     ## Results from iter runs of the experiment
@@ -160,7 +160,7 @@ def run_auction(k1,k2,constraints,thread,stats=0):
 
 def get_unbalanced_keys():
     number_of_keys=1009
-    number_of_cores=45
+    number_of_cores=14
     constraint=[0.0]
 
     ## Results from iter runs of the experiment
@@ -209,4 +209,4 @@ def get_unbalanced_keys():
 
 if __name__ == '__main__' :
     arg=sys.argv
-    run_experiment(int(arg[1]))
+    run_experiment(int(arg[1]), int(arg[2]))
